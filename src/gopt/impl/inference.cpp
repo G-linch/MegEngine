@@ -1758,7 +1758,6 @@ void FuseConvBiasNonlinPass::apply(OptState& state) const {
                                            param.stride_w,
                                            param.dilate_h,
                                            param.dilate_w,
-                                           0,
                                            param.compute_mode};
     };
 
