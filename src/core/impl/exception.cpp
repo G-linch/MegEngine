@@ -77,7 +77,6 @@ AtlasError::AtlasError(const std::string &msg):
 }
 
 
-
 ROCmError::ROCmError(const std::string &msg):
     SystemError(msg)
 {

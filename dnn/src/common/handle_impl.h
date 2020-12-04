@@ -189,6 +189,7 @@ private:
     cb(RelayoutFormat) \
     cb(TopK) \
     cb(PowC) \
+    cb(WinogradFilterPreprocess) \
     cb(LocalShareForward) \
     cb(LocalShareBackwardData) \
     cb(LocalShareBackwardFilter) \

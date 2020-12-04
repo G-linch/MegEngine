@@ -17,7 +17,9 @@ from .module import QuantizedModule
 class Linear(QuantizedModule):
     r"""Quantized version of :class:`~.qat.linear.Linear`."""
 
-    def __init__(self, dtype: np.dtype = None):
+    def __init__(
+        self, dtype: np.dtype = None,
+    ):
         super().__init__()
         self.weight = None
         self.bias = None
@@ -29,13 +31,11 @@ class Linear(QuantizedModule):
         inp_scale = dtype.get_scale(inp.dtype)
         w_scale = dtype.get_scale(self.weight.dtype)
         bias_dtype = dtype.qint32(inp_scale * w_scale)
-        ret = F.nn.linear(
+        return F.nn.linear(
             inp,
             self.weight,
             None if self.bias is None else self.bias.astype(bias_dtype),
-        )
-        ret = ret if self.output_dtype is None else ret.astype(self.output_dtype)
-        return ret
+        ).astype(self.output_dtype)
 
     @classmethod
     def from_qat_module(cls, qat_module: QAT.Linear):

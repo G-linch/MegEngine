@@ -88,7 +88,13 @@ class ConvBias {
         size_t filter_transform_buf_size = 0;
         //! filter : (alpha, alpha, IC, OC) or (OCB, ICB, IC_BLOCK_SIZE,
         //! OC_BLOCK_SIZE)
-        if (param.preprocessed_filter == nullptr) {
+        if (param.preprocessed_filter == nullptr &&
+            param.filter_meta.format !=
+                    param::ConvBias::Format::NCHW_WINOGRAD &&
+            param.filter_meta.format !=
+                    param::ConvBias::Format::NCHW88_WINOGRAD &&
+            param.filter_meta.format !=
+                    param::ConvBias::Format::NCHW44_WINOGRAD) {
             filter_transform_buf_size = Strategy::ALPHA * Strategy::ALPHA * OC *
                                         IC * sizeof(input_filter_compute_type);
         }
@@ -102,7 +108,12 @@ class ConvBias {
                     nullptr,
                     {winograd_comput_size, filter_transform_buf_size * GROUP});
         } else {
-            megdnn_assert(param.preprocessed_filter != nullptr);
+            megdnn_assert(param.filter_meta.format ==
+                                  param::ConvBias::Format::NCHW_WINOGRAD ||
+                          param.filter_meta.format ==
+                                  param::ConvBias::Format::NCHW88_WINOGRAD ||
+                          param.filter_meta.format ==
+                                  param::ConvBias::Format::NCHW44_WINOGRAD);
             return WorkspaceBundle(nullptr, {winograd_comput_size});
         }
     }
@@ -488,6 +499,7 @@ public:
         const TensorND& preprocessed_dst =
                 param.preprocessed_filter->tensors[0];
         WorkspaceBundle bundle = get_preprocess_wbundle(param);
+
         Strategy strategy = m_strategy;
         SmallVector<NCBKern> kerns;
         auto filter_process_kern =
@@ -546,7 +558,13 @@ public:
                 param.filter_meta.stride[1] == 1 &&
                 (param.filter_meta.format == param::ConvBias::Format::NCHW ||
                  param.filter_meta.format == param::ConvBias::Format::NCHW88 ||
-                 param.filter_meta.format == param::ConvBias::Format::NCHW44));
+                 param.filter_meta.format == param::ConvBias::Format::NCHW44 ||
+                 param.filter_meta.format ==
+                         param::ConvBias::Format::NCHW_WINOGRAD ||
+                 param.filter_meta.format ==
+                         param::ConvBias::Format::NCHW88_WINOGRAD ||
+                 param.filter_meta.format ==
+                         param::ConvBias::Format::NCHW44_WINOGRAD));
 
         SmallVector<NCBKern> kerns;
         if (param.preprocessed_filter == nullptr &&

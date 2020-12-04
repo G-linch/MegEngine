@@ -206,17 +206,15 @@ SymbolVar Timestamp::make(SymbolVar node, std::shared_ptr<HostTensorND> dest,
 MGB_DYN_TYPE_OBJ_FINAL_IMPL(VirtualDep);
 
 VirtualDep::VirtualDep(const VarNodeArray& inputs,
-                       const OperatorNodeConfig& cfg)
+                       const OperatorNodeConfig& config)
         : Super(inputs[0]->owner_graph(),
-                cfg.has_comp_node_set() ? cfg : setup_config_cn(cfg, inputs[0]->comp_node()),
-                "virtual_dep", inputs) {
+                setup_config_cn(config, inputs[0]->comp_node()), "virtual_dep",
+                inputs) {
     for (auto inp : inputs) {
         add_input({inp});
     }
     mgb_assert(inputs[0]->dtype().valid());
-    add_output(None)
-            ->dtype(inputs[0]->dtype())
-            .comp_node(config().get_single_comp_node());
+    add_output(None)->dtype(inputs[0]->dtype());
 }
 
 cg::OperatorNodeBase::NodeProp* VirtualDep::do_make_node_prop() const {

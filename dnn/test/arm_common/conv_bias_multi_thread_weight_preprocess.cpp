@@ -83,12 +83,56 @@ TEST_F(ARM_COMMON_MULTI_THREADS, CONV_BIAS_WINOGRAD_PREPROCESS_NCHW44) {
 
     Checker<ConvBiasForward> checker(handle());
 
-    auto run = [&checker](
-                       const std::vector<TestArg>& args,
-                       DType A_dtype,
+    auto extra_impl = [](const TensorNDArray& tensors, uint32_t m,
+                         param::ConvBias param, Handle* handle) {
+        megdnn_assert(param.format == param::ConvBias::Format::NCHW44);
+        auto winograd_preprocess_opr =
+                handle->create_operator<WinogradFilterPreprocess>();
+        winograd_preprocess_opr->param().output_block_size = m;
+        winograd_preprocess_opr->param().format = param::MatrixMul::Format::MK4;
+        TensorLayout filter_transform_layout;
+        winograd_preprocess_opr->deduce_layout(tensors[1].layout,
+                                               filter_transform_layout);
+        size_t winograd_preprocess_workspace_in_bytes =
+                winograd_preprocess_opr->get_workspace_in_bytes(
+                        tensors[1].layout, filter_transform_layout);
+
+        auto conv_bias_opr = handle->create_operator<ConvBias>();
+        conv_bias_opr->param() = param;
+        conv_bias_opr->param().format =
+                param::ConvBias::Format::NCHW44_WINOGRAD;
+        conv_bias_opr->param().output_block_size = m;
+        size_t conv_bias_workspace_in_bytes =
+                conv_bias_opr->get_workspace_in_bytes(
+                        tensors[0].layout, filter_transform_layout,
+                        tensors[2].layout, tensors[3].layout, tensors[4].layout,
+                        nullptr);
+
+        WorkspaceBundle wb(nullptr, {filter_transform_layout.span().dist_byte(),
+                                     conv_bias_workspace_in_bytes,
+                                     winograd_preprocess_workspace_in_bytes});
+        wb.set(malloc(wb.total_size_in_bytes()));
+
+        TensorND filter_transform_tensor(wb.get(0),
+                                         std::move(filter_transform_layout));
+        winograd_preprocess_opr->exec(tensors[1], filter_transform_tensor,
+                                      wb.get_workspace(2));
+        conv_bias_opr->exec(tensors[0], filter_transform_tensor, tensors[2],
+                            tensors[3], tensors[4], nullptr,
+                            wb.get_workspace(1));
+        free(wb.ptr());
+    };
+
+    auto run = [&checker, &extra_impl](
+                       Handle* handle, const std::vector<TestArg>& args,
+                       const std::vector<size_t>& out_size, DType A_dtype,
                        DType B_dtype, DType C_dtype, DType D_dtype,
                        const float eps) {
         for (auto&& arg : args) {
+            for (uint32_t m : out_size) {
+                checker.set_extra_opr_impl(std::bind(extra_impl,
+                                                     std::placeholders::_1, m,
+                                                     arg.param, handle));
                 checker.set_dtype(0, A_dtype)
                         .set_dtype(1, B_dtype)
                         .set_dtype(2, C_dtype)
@@ -96,6 +140,7 @@ TEST_F(ARM_COMMON_MULTI_THREADS, CONV_BIAS_WINOGRAD_PREPROCESS_NCHW44) {
                         .set_epsilon(eps)
                         .set_param(arg.param)
                         .execs({arg.src, arg.filter, arg.bias, {}, {}});
+            }
         }
     };
 
@@ -104,7 +149,7 @@ TEST_F(ARM_COMMON_MULTI_THREADS, CONV_BIAS_WINOGRAD_PREPROCESS_NCHW44) {
     //     dtype::Float32(), dtype::Float32(), 1e-2f);
 
     //! remove this when low precision mode is ok
-    run(nchw44_args, dtype::Float32(), dtype::Float32(),
+    run(handle(), nchw44_args, {2, 6}, dtype::Float32(), dtype::Float32(),
         dtype::Float32(), dtype::Float32(), 1e-3f);
 }
 TEST_F(ARM_COMMON_MULTI_THREADS,
@@ -113,24 +158,31 @@ TEST_F(ARM_COMMON_MULTI_THREADS,
 
     Checker<ConvBiasForward, OprWeightPreprocessProxy<ConvBiasForward>> checker(
             handle());
-    auto run = [&checker](const std::vector<TestArg>& args, DType A_dtype,
+    auto run = [&checker](Handle* handle, const std::vector<TestArg>& args,
+                          const std::vector<size_t>& out_size, DType A_dtype,
                           DType B_dtype, DType C_dtype, DType D_dtype,
-                          float eps) {
+                          param::MatrixMul::Format format, float eps) {
         for (auto&& arg : args) {
-            checker.set_dtype(0, A_dtype)
-                    .set_dtype(1, B_dtype)
-                    .set_dtype(2, C_dtype)
-                    .set_dtype(4, D_dtype)
-                    .set_epsilon(eps)
-                    .set_param(arg.param)
-                    .execs({arg.src, arg.filter, arg.bias, {}, {}});
+            for (uint32_t m : out_size) {
+                checker.set_extra_opr_impl(std::bind(
+                        winograd_algo_extra_impl, std::placeholders::_1, m,
+                        arg.param, handle, format));
+                checker.set_dtype(0, A_dtype)
+                        .set_dtype(1, B_dtype)
+                        .set_dtype(2, C_dtype)
+                        .set_dtype(4, D_dtype)
+                        .set_epsilon(eps)
+                        .set_param(arg.param)
+                        .execs({arg.src, arg.filter, arg.bias, {}, {}});
+            }
         }
     };
     std::vector<TestArg> args = get_winograd_mk_packed_args(8);
     std::vector<TestArg> args_first_half(args.begin(),
                                          args.begin() + args.size() / 2);
-    run(args_first_half, dtype::Float32{}, dtype::Float32{}, dtype::Float32{},
-        dtype::Float32{}, 1e-3f);
+    run(handle(), args_first_half, {2, 6}, dtype::Float32{}, dtype::Float32{},
+        dtype::Float32{}, dtype::Float32{}, param::MatrixMul::Format::MK4,
+        1e-3f);
 }
 TEST_F(ARM_COMMON_MULTI_THREADS,
        CONV_BIAS_WINOGRAD_MK_PACKED_F32_2_WEIGHT_PREPROCESS) {
@@ -138,24 +190,31 @@ TEST_F(ARM_COMMON_MULTI_THREADS,
 
     Checker<ConvBiasForward, OprWeightPreprocessProxy<ConvBiasForward>> checker(
             handle());
-    auto run = [&checker](const std::vector<TestArg>& args, DType A_dtype,
+    auto run = [&checker](Handle* handle, const std::vector<TestArg>& args,
+                          const std::vector<size_t>& out_size, DType A_dtype,
                           DType B_dtype, DType C_dtype, DType D_dtype,
-                          float eps) {
+                          param::MatrixMul::Format format, float eps) {
         for (auto&& arg : args) {
-            checker.set_dtype(0, A_dtype)
-                    .set_dtype(1, B_dtype)
-                    .set_dtype(2, C_dtype)
-                    .set_dtype(4, D_dtype)
-                    .set_epsilon(eps)
-                    .set_param(arg.param)
-                    .execs({arg.src, arg.filter, arg.bias, {}, {}});
+            for (uint32_t m : out_size) {
+                checker.set_extra_opr_impl(std::bind(
+                        winograd_algo_extra_impl, std::placeholders::_1, m,
+                        arg.param, handle, format));
+                checker.set_dtype(0, A_dtype)
+                        .set_dtype(1, B_dtype)
+                        .set_dtype(2, C_dtype)
+                        .set_dtype(4, D_dtype)
+                        .set_epsilon(eps)
+                        .set_param(arg.param)
+                        .execs({arg.src, arg.filter, arg.bias, {}, {}});
+            }
         }
     };
     std::vector<TestArg> args = get_winograd_mk_packed_args(8);
     std::vector<TestArg> args_second_half(args.begin() + args.size() / 2,
                                           args.end());
-    run(args_second_half, dtype::Float32{}, dtype::Float32{}, dtype::Float32{},
-        dtype::Float32{}, 1e-3f);
+    run(handle(), args_second_half, {2, 6}, dtype::Float32{}, dtype::Float32{},
+        dtype::Float32{}, dtype::Float32{}, param::MatrixMul::Format::MK4,
+        1e-3f);
 }
 #if __ARM_FEATURE_FP16_VECTOR_ARITHMETIC
 TEST_F(ARM_COMMON_MULTI_THREADS,
@@ -164,25 +223,32 @@ TEST_F(ARM_COMMON_MULTI_THREADS,
 
     Checker<ConvBiasForward, OprWeightPreprocessProxy<ConvBiasForward>> checker(
             handle());
-    auto run = [&checker](const std::vector<TestArg>& args, DType A_dtype,
+    auto run = [&checker](Handle* handle, const std::vector<TestArg>& args,
+                          const std::vector<size_t>& out_size, DType A_dtype,
                           DType B_dtype, DType C_dtype, DType D_dtype,
-                          float eps) {
+                          param::MatrixMul::Format format, float eps) {
         for (auto&& arg : args) {
-            checker.set_dtype(0, A_dtype)
-                    .set_dtype(1, B_dtype)
-                    .set_dtype(2, C_dtype)
-                    .set_dtype(4, D_dtype)
-                    .set_epsilon(eps)
-                    .set_param(arg.param)
-                    .execs({arg.src, arg.filter, arg.bias, {}, {}});
+            for (uint32_t m : out_size) {
+                checker.set_extra_opr_impl(std::bind(
+                        winograd_algo_extra_impl, std::placeholders::_1, m,
+                        arg.param, handle, format));
+                checker.set_dtype(0, A_dtype)
+                        .set_dtype(1, B_dtype)
+                        .set_dtype(2, C_dtype)
+                        .set_dtype(4, D_dtype)
+                        .set_epsilon(eps)
+                        .set_param(arg.param)
+                        .execs({arg.src, arg.filter, arg.bias, {}, {}});
+            }
         }
     };
 
     std::vector<TestArg> args = get_winograd_mk_packed_args(8);
     Float16PeriodicalRNG* rng = new Float16PeriodicalRNG(0x3c00);
     checker.set_rng(0, rng).set_rng(1, rng).set_rng(2, rng);
-    run(args, dtype::Float16{}, dtype::Float16{}, dtype::Float16{},
-        dtype::Float16{}, 0.25);
+    run(handle(), args, {2}, dtype::Float16{}, dtype::Float16{},
+        dtype::Float16{}, dtype::Float16{}, param::MatrixMul::Format::MK8,
+        0.25);
 }
 #endif
 TEST_F(ARM_COMMON_MULTI_THREADS,
@@ -191,17 +257,23 @@ TEST_F(ARM_COMMON_MULTI_THREADS,
 
     Checker<ConvBiasForward, OprWeightPreprocessProxy<ConvBiasForward>> checker(
             handle());
-    auto run = [&checker](const std::vector<TestArg>& args, DType A_dtype,
+    auto run = [&checker](Handle* handle, const std::vector<TestArg>& args,
+                          const std::vector<size_t>& out_size, DType A_dtype,
                           DType B_dtype, DType C_dtype, DType D_dtype,
-                          float eps) {
+                          param::MatrixMul::Format format, float eps) {
         for (auto&& arg : args) {
-            checker.set_dtype(0, A_dtype)
-                    .set_dtype(1, B_dtype)
-                    .set_dtype(2, C_dtype)
-                    .set_dtype(4, D_dtype)
-                    .set_epsilon(eps)
-                    .set_param(arg.param)
-                    .execs({arg.src, arg.filter, arg.bias, {}, {}});
+            for (uint32_t m : out_size) {
+                checker.set_extra_opr_impl(std::bind(
+                        winograd_algo_extra_impl, std::placeholders::_1, m,
+                        arg.param, handle, format));
+                checker.set_dtype(0, A_dtype)
+                        .set_dtype(1, B_dtype)
+                        .set_dtype(2, C_dtype)
+                        .set_dtype(4, D_dtype)
+                        .set_epsilon(eps)
+                        .set_param(arg.param)
+                        .execs({arg.src, arg.filter, arg.bias, {}, {}});
+            }
         }
     };
 
@@ -217,8 +289,9 @@ TEST_F(ARM_COMMON_MULTI_THREADS,
             get_quantized_winograd_mk_packed_args(8);
     UniformIntRNG int_rng{-50, 50};
     checker.set_rng(0, &int_rng).set_rng(1, &int_rng).set_rng(2, &int_rng);
-    run(quantized_args, dtype::QuantizedS8(2.5f), dtype::QuantizedS8(2.5f),
-        dtype::QuantizedS32(6.25f), dtype::QuantizedS8(60.25f), 1e-3);
+    run(handle(), quantized_args, {2}, dtype::QuantizedS8(2.5f),
+        dtype::QuantizedS8(2.5f), dtype::QuantizedS32(6.25f),
+        dtype::QuantizedS8(60.25f), param::MatrixMul::Format::MK8, 1e-3);
 }
 TEST_F(ARM_COMMON_MULTI_THREADS,
        CONV_BIAS_WINOGRAD_NCHW44_MK_PACKED_INT8_WEIGHT_PREPROCESS) {
@@ -226,11 +299,15 @@ TEST_F(ARM_COMMON_MULTI_THREADS,
 
     Checker<ConvBiasForward, OprWeightPreprocessProxy<ConvBiasForward>> checker(
             handle());
-    auto run = [&checker](const std::vector<TestArg>& args,
-                          DType A_dtype,
+    auto run = [&checker](Handle* handle, const std::vector<TestArg>& args,
+                          const std::vector<size_t>& out_size, DType A_dtype,
                           DType B_dtype, DType C_dtype, DType D_dtype,
-                          float eps) {
+                          param::MatrixMul::Format format, float eps) {
         for (auto&& arg : args) {
+            for (uint32_t m : out_size) {
+                checker.set_extra_opr_impl(std::bind(
+                        winograd_algo_extra_impl, std::placeholders::_1, m,
+                        arg.param, handle, format));
                 checker.set_dtype(0, A_dtype)
                         .set_dtype(1, B_dtype)
                         .set_dtype(2, C_dtype)
@@ -238,6 +315,7 @@ TEST_F(ARM_COMMON_MULTI_THREADS,
                         .set_epsilon(eps)
                         .set_param(arg.param)
                         .execs({arg.src, arg.filter, arg.bias, {}, {}});
+            }
         }
     };
 
@@ -252,8 +330,9 @@ TEST_F(ARM_COMMON_MULTI_THREADS,
     std::vector<TestArg> quantized_args = get_int8_nchw44_args(3, 4);
     UniformIntRNG int_rng{-50, 50};
     checker.set_rng(0, &int_rng).set_rng(1, &int_rng).set_rng(2, &int_rng);
-    run(quantized_args, dtype::QuantizedS8(2.5f), dtype::QuantizedS8(2.5f),
-        dtype::QuantizedS32(6.25f), dtype::QuantizedS8(60.25f), 1e-3);
+    run(handle(), quantized_args, {2}, dtype::QuantizedS8(2.5f),
+        dtype::QuantizedS8(2.5f), dtype::QuantizedS32(6.25f),
+        dtype::QuantizedS8(60.25f), param::MatrixMul::Format::MK8, 1e-3);
 }
 TEST_F(ARM_COMMON_MULTI_THREADS,
        CONV_BIAS_WINOGRAD_NCHW44_MK_PACKED_INT8_GROUPMODE_WEIGHT_PREPROCESS) {
@@ -261,17 +340,23 @@ TEST_F(ARM_COMMON_MULTI_THREADS,
 
     Checker<ConvBiasForward, OprWeightPreprocessProxy<ConvBiasForward>> checker(
             handle());
-    auto run = [&checker](const std::vector<TestArg>& args, DType A_dtype,
+    auto run = [&checker](Handle* handle, const std::vector<TestArg>& args,
+                          const std::vector<size_t>& out_size, DType A_dtype,
                           DType B_dtype, DType C_dtype, DType D_dtype,
-                          float eps) {
+                          param::MatrixMul::Format format, float eps) {
         for (auto&& arg : args) {
-            checker.set_dtype(0, A_dtype)
-                    .set_dtype(1, B_dtype)
-                    .set_dtype(2, C_dtype)
-                    .set_dtype(4, D_dtype)
-                    .set_epsilon(eps)
-                    .set_param(arg.param)
-                    .execs({arg.src, arg.filter, arg.bias, {}, {}});
+            for (uint32_t m : out_size) {
+                checker.set_extra_opr_impl(std::bind(
+                        winograd_algo_extra_impl, std::placeholders::_1, m,
+                        arg.param, handle, format));
+                checker.set_dtype(0, A_dtype)
+                        .set_dtype(1, B_dtype)
+                        .set_dtype(2, C_dtype)
+                        .set_dtype(4, D_dtype)
+                        .set_epsilon(eps)
+                        .set_param(arg.param)
+                        .execs({arg.src, arg.filter, arg.bias, {}, {}});
+            }
         }
     };
 
@@ -287,8 +372,9 @@ TEST_F(ARM_COMMON_MULTI_THREADS,
             get_int8_nchw44_args(3, 4, false, true);
     UniformIntRNG int_rng{-50, 50};
     checker.set_rng(0, &int_rng).set_rng(1, &int_rng).set_rng(2, &int_rng);
-    run(quantized_args, dtype::QuantizedS8(2.5f), dtype::QuantizedS8(2.5f),
-        dtype::QuantizedS32(6.25f), dtype::QuantizedS8(60.25f), 1e-3);
+    run(handle(), quantized_args, {2}, dtype::QuantizedS8(2.5f),
+        dtype::QuantizedS8(2.5f), dtype::QuantizedS32(6.25f),
+        dtype::QuantizedS8(60.25f), param::MatrixMul::Format::MK8, 1e-3);
 }
 
 TEST_F(ARM_COMMON_MULTI_THREADS,
@@ -297,17 +383,23 @@ TEST_F(ARM_COMMON_MULTI_THREADS,
 
     Checker<ConvBiasForward, OprWeightPreprocessProxy<ConvBiasForward>> checker(
             handle());
-    auto run = [&checker](const std::vector<TestArg>& args, DType A_dtype,
+    auto run = [&checker](Handle* handle, const std::vector<TestArg>& args,
+                          const std::vector<size_t>& out_size, DType A_dtype,
                           DType B_dtype, DType C_dtype, DType D_dtype,
-                          float eps) {
+                          param::MatrixMul::Format format, float eps) {
         for (auto&& arg : args) {
-            checker.set_dtype(0, A_dtype)
-                    .set_dtype(1, B_dtype)
-                    .set_dtype(2, C_dtype)
-                    .set_dtype(4, D_dtype)
-                    .set_epsilon(eps)
-                    .set_param(arg.param)
-                    .execs({arg.src, arg.filter, arg.bias, {}, {}});
+            for (uint32_t m : out_size) {
+                checker.set_extra_opr_impl(std::bind(
+                        winograd_algo_extra_impl, std::placeholders::_1, m,
+                        arg.param, handle, format));
+                checker.set_dtype(0, A_dtype)
+                        .set_dtype(1, B_dtype)
+                        .set_dtype(2, C_dtype)
+                        .set_dtype(4, D_dtype)
+                        .set_epsilon(eps)
+                        .set_param(arg.param)
+                        .execs({arg.src, arg.filter, arg.bias, {}, {}});
+            }
         }
     };
 
@@ -322,10 +414,11 @@ TEST_F(ARM_COMMON_MULTI_THREADS,
     std::vector<TestArg> quantized_args = get_int8_nchw44_args(3, 4, true);
     UniformIntRNG int_rng{-50, 50};
     checker.set_rng(0, &int_rng).set_rng(1, &int_rng).set_rng(2, &int_rng);
-    run(quantized_args, dtype::QuantizedS8(0.41113496f),
+    run(handle(), quantized_args, {2}, dtype::QuantizedS8(0.41113496f),
         dtype::QuantizedS8(0.01887994f),
         dtype::QuantizedS32(0.41113496f * 0.01887994f),
-        dtype::QuantizedS8(0.49550694f), epsilon);
+        dtype::QuantizedS8(0.49550694f), param::MatrixMul::Format::MK4,
+        epsilon);
 }
 
 TEST_F(ARM_COMMON_MULTI_THREADS,
@@ -334,17 +427,23 @@ TEST_F(ARM_COMMON_MULTI_THREADS,
 
     Checker<ConvBiasForward, OprWeightPreprocessProxy<ConvBiasForward>> checker(
             handle());
-    auto run = [&checker](const std::vector<TestArg>& args, DType A_dtype,
+    auto run = [&checker](Handle* handle, const std::vector<TestArg>& args,
+                          const std::vector<size_t>& out_size, DType A_dtype,
                           DType B_dtype, DType C_dtype, DType D_dtype,
-                          float eps) {
+                          param::MatrixMul::Format format, float eps) {
         for (auto&& arg : args) {
-            checker.set_dtype(0, A_dtype)
-                    .set_dtype(1, B_dtype)
-                    .set_dtype(2, C_dtype)
-                    .set_dtype(4, D_dtype)
-                    .set_epsilon(eps)
-                    .set_param(arg.param)
-                    .execs({arg.src, arg.filter, arg.bias, {}, {}});
+            for (uint32_t m : out_size) {
+                checker.set_extra_opr_impl(std::bind(
+                        winograd_algo_extra_impl, std::placeholders::_1, m,
+                        arg.param, handle, format));
+                checker.set_dtype(0, A_dtype)
+                        .set_dtype(1, B_dtype)
+                        .set_dtype(2, C_dtype)
+                        .set_dtype(4, D_dtype)
+                        .set_epsilon(eps)
+                        .set_param(arg.param)
+                        .execs({arg.src, arg.filter, arg.bias, {}, {}});
+            }
         }
     };
 
@@ -360,10 +459,11 @@ TEST_F(ARM_COMMON_MULTI_THREADS,
             get_int8_nchw44_args(3, 4, true, true);
     UniformIntRNG int_rng{-50, 50};
     checker.set_rng(0, &int_rng).set_rng(1, &int_rng).set_rng(2, &int_rng);
-    run(quantized_args, dtype::QuantizedS8(0.41113496f),
+    run(handle(), quantized_args, {2}, dtype::QuantizedS8(0.41113496f),
         dtype::QuantizedS8(0.01887994f),
         dtype::QuantizedS32(0.41113496f * 0.01887994f),
-        dtype::QuantizedS8(0.49550694f), epsilon);
+        dtype::QuantizedS8(0.49550694f), param::MatrixMul::Format::MK4,
+        epsilon);
 }
 #if __ARM_FEATURE_FP16_VECTOR_ARITHMETIC
 TEST_F(ARM_COMMON_MULTI_THREADS, CONV_BIAS_WINOGRAD_F16_F23_WEIGHT_PREPROCESS) {

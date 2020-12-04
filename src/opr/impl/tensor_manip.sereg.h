@@ -184,6 +184,7 @@ namespace opr {
 
     MGB_REG_OPR_SHALLOW_COPY(ParamPackConcat, opr_shallow_copy_param_pack_concat);
     MGB_SEREG_OPR(RelayoutFormat, 1);
+    MGB_SEREG_OPR(WinogradFilterPreprocess, 1);
 } // namespace opr
 
 } // namespace mgb

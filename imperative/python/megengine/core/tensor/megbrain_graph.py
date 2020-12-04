@@ -16,7 +16,6 @@ from typing import Dict, List, Union
 
 import numpy as np
 
-from ...utils.comp_graph_tools import set_priority_to_id as _set_priority_to_id
 from .. import _imperative_rt
 from .._imperative_rt import GraphOptimizeOptions
 from .._imperative_rt.ops import BackwardGraph
@@ -44,9 +43,6 @@ class Graph(_imperative_rt.ComputingGraph):
         if obj not in cache:
             cache[obj] = wrapper(obj)
         return cache[obj]
-
-    def set_priority_to_id(self, dest_vars):
-        _set_priority_to_id(_unwrap(dest_vars))
 
     def compile(self, *args):
         self._function = super().compile(_unwrap(args))
@@ -447,8 +443,8 @@ def _(op: OpDef, *args: VarNode):
 def _(op: BackwardGraph, *args: VarNode):
     assert args
     graph = args[0].graph
-    return op.interpret(
-        lambda op, args: apply(op, *args), graph._make_const_for_backward, args
+    return BackwardGraph.interpret(
+        op, lambda op, args: apply(op, *args), graph._make_const_for_backward, args
     )
 
 
@@ -569,9 +565,3 @@ class AttrOutputNode(OpNode):
 
     def reset(self):
         self._rendezvous.reset()
-
-
-class VirtualDepNode(OpNode):
-    def __init__(self, vars, device=""):
-        out = _imperative_rt.virtual_dep(_unwrap(vars), device)
-        super().__init__(out)

@@ -173,16 +173,6 @@ namespace gopt {
     };
 
     /*!
-     * \brief fuse warp perspective and dimshuffle, quint8/uint8 to qint8/float
-     */
-    class FuseWarpPerspectiveDimshufflePass : public Pass {
-        public:
-            const char* name() const override;
-            void apply(OptState& opt) const override;
-    };
-
-
-    /*!
      * \brief fuse deconv and typecvt to a deconv opr
      */
     class FuseDeconvCvtPass : public Pass {
@@ -397,12 +387,6 @@ namespace gopt {
     class ShuffleShuffleRemovePass final : public Pass {
         class Impl;
 
-        public:
-            const char* name() const override;
-            void apply(OptState& opt) const override;
-    };
-
-    class FoldingConvBiasDimshufflePass final : public Pass {
         public:
             const char* name() const override;
             void apply(OptState& opt) const override;

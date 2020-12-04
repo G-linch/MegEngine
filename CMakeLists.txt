@@ -513,7 +513,6 @@ if(MGE_WITH_ATLAS)
     set(MGB_ATLAS ${MGE_WITH_ATLAS})
 endif()
 
-
 find_program(CCACHE_BIN ccache)
 if(CCACHE_BIN)
     set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_BIN})
@@ -689,7 +688,6 @@ if(MGE_ARCH STREQUAL "aarch64")
     set(MEGDNN_AARCH64 1)
     set(MEGDNN_64_BIT 1)
     set(MARCH "-march=armv8-a")
-    set(MGB_AARCH64 1)
     if(MGE_ARMV8_2_FEATURE_FP16)
         message(STATUS "Enable fp16 feature support in armv8.2")
         if(NOT ${MGE_DISABLE_FLOAT16})
@@ -798,6 +796,7 @@ endif()
 if(MGE_WITH_TEST AND MGE_ENABLE_RTTI)
     add_subdirectory(test)
 endif()
+
 
 if(TARGET _imperative_rt)
     add_custom_target(

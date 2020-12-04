@@ -35,10 +35,6 @@
 #include "megcore_atlas.h"
 #endif
 
-#if MGB_MC40
-#include "megbrain/mc40/mc40_memory_manager.h"
-#endif
-
 using namespace mgb;
 
 /* =================== MegDNNHandle =================== */
@@ -104,7 +100,6 @@ MegDNNHandle::MegDNNHandle(const CompNodeEnv& env) {
         init = true;
     }
 #endif
-
 
     if (env.property().type == CompNode::DeviceType::CPU) {
         megcoreCreateDeviceHandle(&m_dev_hdl, megcorePlatformCPU);
@@ -257,7 +252,6 @@ void CompNodeEnv::init_atlas(CompNode comp_node, const AtlasEnv& env) {
                MegDNNHandle::get(*this).handle()->alignment_requirement());
 }
 #endif
-
 
 
 #if MGB_ROCM

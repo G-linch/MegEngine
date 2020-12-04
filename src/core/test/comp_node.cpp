@@ -62,7 +62,6 @@ TEST(TestCompNode, Parse) {
     ASSERT_EQ(L::parse("multithread:default:2"),
               make_lc(D::MULTITHREAD, L::DEVICE_MULTITHREAD_DEFAULT, 2));
 
-
     ASSERT_THROW(L::parse("apu"), MegBrainError);
     ASSERT_THROW(L::parse("fpgbx"), MegBrainError);
     ASSERT_THROW(L::parse("cab0"), MegBrainError);
@@ -150,7 +149,6 @@ TEST(TestCompNode, Load) {
     auto atlas1 = CompNode::load("atlas1");
     ASSERT_NE(atlas0, atlas1);
 #endif
-
 }
 
 TEST(TestCompNode, FreeAfterFinalize) {
@@ -763,7 +761,6 @@ TEST(TestCompNodeAtlas, D2DCopy) {
     run(cn);
 }
 #endif
-
 
 namespace {
 class CompNodeDepedentObjectInst final : public CompNodeDepedentObject {
