@@ -47,6 +47,20 @@ struct PyOp(name) : PyOpDef { \
 }; \
 PyTypeObject PyOpType(name);
 
+#define RETURN_RICHCOMPARE(val1, val2, op)                               \
+    do {                                                                    \
+        switch (op) {                                                       \
+        case Py_EQ: if ((val1) == (val2)) Py_RETURN_TRUE; Py_RETURN_FALSE;  \
+        case Py_NE: if ((val1) != (val2)) Py_RETURN_TRUE; Py_RETURN_FALSE;  \
+        case Py_LT: if ((val1) < (val2)) Py_RETURN_TRUE; Py_RETURN_FALSE;   \
+        case Py_GT: if ((val1) > (val2)) Py_RETURN_TRUE; Py_RETURN_FALSE;   \
+        case Py_LE: if ((val1) <= (val2)) Py_RETURN_TRUE; Py_RETURN_FALSE;  \
+        case Py_GE: if ((val1) >= (val2)) Py_RETURN_TRUE; Py_RETURN_FALSE;  \
+        default:                                                            \
+            Py_FatalError("Unreachable C code path reached");               \
+        }                                                                   \
+    } while (0)
+
 template<typename T, typename SFINAE=void>
 struct pyobj_convert_generic {
     static T from(PyObject* obj) {
@@ -127,7 +141,7 @@ PyObject* PyOp(OpDef)::tp_richcompare(PyObject *self, PyObject *other, int op) {
     bool same = reinterpret_cast<PyOp(OpDef)*>(self)->op->is_same(
         *reinterpret_cast<PyOp(OpDef)*>(other)->op);
     if (op == Py_EQ || op == Py_NE) {
-        Py_RETURN_RICHCOMPARE(same, true, op);
+        RETURN_RICHCOMPARE(same, true, op);
     }
     Py_RETURN_NOTIMPLEMENTED;
 }
@@ -155,7 +169,7 @@ struct EnumWrapper {
         T lhs = reinterpret_cast<EnumWrapper*>(self)->value,
           rhs = reinterpret_cast<EnumWrapper*>(other)->value;
         if (op == Py_EQ || op == Py_NE) {
-            Py_RETURN_RICHCOMPARE(lhs, rhs, op);
+            RETURN_RICHCOMPARE(lhs, rhs, op);
         }
         Py_RETURN_NOTIMPLEMENTED;
     }
