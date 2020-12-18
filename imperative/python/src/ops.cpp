@@ -57,7 +57,7 @@ struct pyobj_convert_generic {
     template<typename U,
         typename = std::enable_if_t<std::is_same_v<T, std::decay_t<U>>>>
     static PyObject* to(U&& t) {
-        return py::cast(std::forward<U>(t)).inc_ref().ptr();
+        return py::cast(std::forward<U>(t)).release().ptr();
     }
 };
 
@@ -177,7 +177,6 @@ struct pyobj_convert_generic<T,
         PyTypeObject* pytype = &Wrapper::type;
         PyObject* obj = pytype->tp_alloc(pytype, 0);
         reinterpret_cast<Wrapper*>(obj)->value = t;
-        Py_INCREF(obj);
         return obj;
     }
 };
@@ -227,7 +226,7 @@ void _init_py_backward_graph(py::module m) {
             return self.cast_final_safe<BackwardGraph>().graph().interpret<py::object>(f, c, inputs);
         });
     mgb_assert(PyDict_SetItemString(
-        py_type.tp_dict, "interpret", interpret.inc_ref().ptr()) >= 0);
+        py_type.tp_dict, "interpret", interpret.release().ptr()) >= 0);
     PyType_Modified(&py_type);
     m.add_object("BackwardGraph", reinterpret_cast<PyObject*>(&py_type));
     mgb_assert(PyOp(OpDef)::ctype2pytype.emplace(BackwardGraph::typeinfo(), &py_type).second);
@@ -283,7 +282,7 @@ handle type_caster<OpDef>::cast(const OpDef& op, return_value_policy, handle) {
     PyObject* obj = pytype->tp_alloc(pytype, 0);
     mgb_assert(PyObject_TypeCheck(obj, &PyOpType(OpDef)));
     reinterpret_cast<PyOp(OpDef)*>(obj)->op = const_cast<OpDef&>(op).shared_from_this();
-    return py::handle(obj).inc_ref();
+    return py::handle(obj);
 }
 } // detail
 } // PYBIND11_NAMESPACE

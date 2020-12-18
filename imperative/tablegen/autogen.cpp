@@ -405,7 +405,6 @@ EnumWrapper<{0}::{1}>::type2str = {{
                     body += formatv(R"({{
     PyObject* inst = e_type.tp_alloc(&e_type, 0);
     reinterpret_cast<EnumWrapper<{0}::{1}>*>(inst)->value = {0}::{1}::{2};
-    Py_INCREF(inst);
     mgb_assert(PyDict_SetItemString(e_type.tp_dict, "{2}", inst) >= 0);
 })", className, enumName, i);
                 }
