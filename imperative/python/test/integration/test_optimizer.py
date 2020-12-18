@@ -7,6 +7,7 @@
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT ARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 import numpy as np
+import pytest
 
 import megengine.autodiff as ad
 import megengine.functional as F
@@ -104,6 +105,7 @@ def _test_optimizer(opt_str, test_case, check_class, update_lr=False):
             check_func(ori_params, net.parameters(), step)
 
 
+@pytest.mark.skip(reason="tmp skip for 1.2")
 def test_sgd():
     class CheckValue:
         def __init__(self, net, **kwarg):
@@ -133,6 +135,7 @@ def test_sgd():
         _test_optimizer("SGD", case, CheckValue, update_lr=True)
 
 
+@pytest.mark.skip(reason="tmp skip for 1.2")
 def test_adam():
     class CheckValue:
         def __init__(self, net, **kwarg):
@@ -174,6 +177,7 @@ def test_adam():
         _test_optimizer("Adam", case, CheckValue, update_lr=True)
 
 
+@pytest.mark.skip(reason="tmp skip for 1.2")
 def test_adagrad():
     class CheckValue:
         def __init__(self, net, **kwarg):
@@ -206,6 +210,7 @@ def test_adagrad():
         _test_optimizer("Adagrad", case, CheckValue, update_lr=True)
 
 
+@pytest.mark.skip(reason="tmp skip for 1.2")
 def test_adadelta():
     class CheckValue:
         def __init__(self, net, **kwarg):

@@ -9,6 +9,7 @@
 from concurrent.futures import Future
 
 import numpy as np
+import pytest
 
 from megengine.core.ops.builtin import Elemwise
 from megengine.core.tensor import megbrain_graph as mgb_graph

@@ -1359,6 +1359,7 @@ def dropout(inp: Tensor, drop_prob: float, training: bool = True) -> Tensor:
     Examples:
 
     .. testcode::
+        :skipif: True
 
         import numpy as np
         from megengine import tensor

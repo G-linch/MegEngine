@@ -8,6 +8,7 @@
 import copy
 
 import numpy as np
+import pytest
 
 import megengine.autodiff as ad
 import megengine.functional as F

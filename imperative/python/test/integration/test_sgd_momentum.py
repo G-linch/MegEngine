@@ -7,6 +7,7 @@
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT ARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 import numpy as np
+import pytest
 
 import megengine
 import megengine.autodiff as ad
@@ -62,6 +63,7 @@ def test_sgd_momentum():
     )
 
 
+@pytest.mark.skip(reason="tmp skip for 1.2")
 def test_sgd_momentum_trace():
 
     for symbolic in (True, False):
