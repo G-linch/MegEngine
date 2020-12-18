@@ -21,7 +21,6 @@ from ..ops.builtin import Elemwise, OpDef, RemoteSend
 from ..ops.special import Const
 from ..tensor.core import TensorBase, TensorWrapperBase, apply
 from ..tensor.function import Function
-from ..tensor.tensor import Tensor, get_context
 from . import builtin_op_utils
 
 """ Some notes:
@@ -65,6 +64,7 @@ def get_tensor(x):
     return get_tensor(x)
 
 
+'''
 class Grad:
     def __init__(self, name=None):
 
@@ -295,6 +295,7 @@ class Grad:
 
     def __del__(self):
         self._exit()
+'''
 
 
 class clearable:
