@@ -15,6 +15,8 @@
 
 #include "megbrain/utils/hash.h"
 
+#include <pybind11/pybind11.h>
+
 namespace mgb::imperative {
 
 class VirtualDep : public OpDefImplBase<VirtualDep> {
@@ -30,6 +32,22 @@ public:
     bool is_same_st(const Hashable& rhs) const override {
         return true;
     }
+};
+
+struct GenericPyOp final : OpDefImplBase<GenericPyOp> {
+    pybind11::object obj;
+
+    GenericPyOp(pybind11::object obj_) : obj(std::move(obj_)) {};
+
+    size_t hash() const override {
+        return pybind11::hash(obj);
+    }
+
+    bool is_same_st(const Hashable& rhs) const override {
+        return obj.equal(static_cast<const GenericPyOp&>(rhs).obj);
+    }
+
+    MGB_DYN_TYPE_OBJ_FINAL_DECL;
 };
 
 } // namespace mgb::imperative

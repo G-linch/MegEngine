@@ -36,4 +36,6 @@ OP_TRAIT_REG(VirtualDep, VirtualDep, mgb::opr::VirtualDep)
 
 MGB_DYN_TYPE_OBJ_FINAL_IMPL(VirtualDep);
 
+MGB_DYN_TYPE_OBJ_FINAL_IMPL(GenericPyOp);
+
 } // namespace mgb::imperative

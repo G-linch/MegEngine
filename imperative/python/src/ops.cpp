@@ -266,6 +266,35 @@ void _init_py_virtual_dep(py::module m) {
     mgb_assert(PyOp(OpDef)::ctype2pytype.emplace(VirtualDep::typeinfo(), &py_type).second);
 }
 
+struct PyOpBase : PyOpDef {
+    static PyTypeObject py_type;
+
+    static PyObject* tp_new(PyTypeObject* type, PyObject*, PyObject*) {
+        auto* obj = type->tp_alloc(type, 0);
+        if (obj) {
+            auto* self = reinterpret_cast<PyOpBase*>(obj);
+            new(&self->op) decltype(self->op);
+        }
+        return obj;
+    }
+};
+PyTypeObject PyOpBase::py_type;
+
+void _init_py_op_base(py::module m) {
+    using py_op = PyOpBase;
+    auto& py_type = PyOpBase::py_type;
+    py_type = {PyVarObject_HEAD_INIT(NULL, 0)};
+    py_type.tp_name = "megengine.core._imperative_rt.ops.PyOpBase";
+    py_type.tp_basicsize = sizeof(py_op);
+    py_type.tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE;
+    py_type.tp_doc = "PyOpBase";
+    py_type.tp_base = &PyOpType(OpDef);
+    py_type.tp_dealloc = py_dealloc_generic<py_op>;
+    py_type.tp_new = py_op::tp_new;
+    mgb_assert(PyType_Ready(&py_type) >= 0);
+    m.add_object("PyOpBase", reinterpret_cast<PyObject*>(&py_type));
+}
+
 /*********** end of hand-write opdefs **************/
 
 // auto generated opdefs
@@ -281,9 +310,16 @@ bool type_caster<OpDef>::load(handle src, bool convert) {
         return false;
     }
     value = reinterpret_cast<PyOp(OpDef)*>(obj)->op;
+    if (!value) {
+        // opdef only defined in Python
+        value = std::make_shared<GenericPyOp>(reinterpret_borrow<object>(src));
+    }
     return true;
 }
 handle type_caster<OpDef>::cast(const OpDef& op, return_value_policy, handle) {
+    if (auto* pyop = op.try_cast_final<GenericPyOp>()) {
+        return object(pyop->obj).release();
+    }
     PyTypeObject* pytype;
     auto& c2p = PyOp(OpDef)::ctype2pytype;
     auto&& iter = c2p.find(op.dyn_typeinfo());
@@ -305,5 +341,6 @@ void init_ops(py::module m) {
     _init_py_op_def(m);
     _init_py_backward_graph(m);
     _init_py_virtual_dep(m);
+    _init_py_op_base(m);
     INIT_ALL_OP(m)
 }
