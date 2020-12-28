@@ -361,7 +361,7 @@ static void gen_op_def_python_c_extension_single(raw_ostream &os, MgbOp& op, Enu
             );
             if (iter == enumAlias.end()) {
                 os << formatv(
-                    "template<> PyTypeObject EnumWrapper<{0}::{1}>::type;\n",
+                    "template<> PyTypeObject EnumWrapper<{0}::{1}>::type={{};\n",
                     className, enumName);
                 os << formatv(
                     "template<> const char* EnumWrapper<{0}::{1}>::name = \"{0}.{1}\";\n",

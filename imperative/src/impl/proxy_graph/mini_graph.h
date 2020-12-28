@@ -5,7 +5,9 @@
 #include "./common.h"
 #include "./proxy_graph_base.h"
 
+#include <optional>
 #include "range/v3/all.hpp"
+
 
 namespace mgb::imperative::proxy_graph {
 
@@ -162,7 +164,8 @@ protected:
         }
 
         const TensorShape* shape(size_t i) {
-            auto& shape = TensorAdaptor(wrapped[i]).shape();
+            TensorAdaptor tensor(wrapped[i]);
+            auto& shape = tensor.shape();
             return shape.ndim ? &shape : nullptr;
         }
 
