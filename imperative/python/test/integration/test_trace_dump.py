@@ -64,7 +64,6 @@ class XORNet(M.Module):
         return x
 
 
-@pytest.mark.skip(reason="tmp skip for 1.2")
 def test_xornet_trace_dump():
     net = XORNet()
     opt = optim.SGD(net.parameters(), lr=0.01, momentum=0.9)

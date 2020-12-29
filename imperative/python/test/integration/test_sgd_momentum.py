@@ -63,7 +63,6 @@ def test_sgd_momentum():
     )
 
 
-@pytest.mark.skip(reason="tmp skip for 1.2")
 def test_sgd_momentum_trace():
 
     for symbolic in (True, False):
