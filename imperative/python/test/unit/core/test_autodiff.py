@@ -60,6 +60,7 @@ def save_to(self, name="grad"):
 )
 @pytest.mark.skipif(get_device_count_by_fork("gpu") < 2, reason="need more gpu device")
 @pytest.mark.isolated_distributed
+@pytest.mark.skip(reason="FIXME: remote_send/recv")
 def test_dist_grad():
     world_size = 2
     x_np = np.random.rand(10).astype("float32")

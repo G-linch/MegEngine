@@ -434,6 +434,7 @@ def test_all_to_all():
     platform.system() == "Windows", reason="windows disable MGB_ENABLE_OPR_MM"
 )
 @pytest.mark.isolated_distributed
+@pytest.mark.skip(reason="FIXME: remote_send/recv")
 def test_io_remote():
     world_size = 2
     server = dist.Server()
